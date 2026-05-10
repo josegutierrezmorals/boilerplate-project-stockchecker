@@ -14,15 +14,13 @@ app.use(cors({ origin: '*' }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Ruta principal SIN CSP (necesita jQuery externo)
-app.route('/').get(function (req, res) {
-  res.sendFile(process.cwd() + '/views/index.html');
-});
-
-// CSP aplicado DESPUÉS de la ruta principal
 app.use(function(req, res, next) {
   res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'");
   next();
+});
+
+app.route('/').get(function (req, res) {
+  res.sendFile(process.cwd() + '/views/index.html');
 });
 
 fccTestingRoutes(app);
