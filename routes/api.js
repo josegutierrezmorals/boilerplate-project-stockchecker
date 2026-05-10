@@ -31,4 +31,71 @@ module.exports = function (app) {
         const ip = anonymizeIP(req.ip);
 
         if (Array.isArray(req.query.stock)) {
-          const [sym1, sym2] = req.query.stock.map(s =>
+          const sym1 = req.query.stock[0].toUpperCase();
+          const sym2 = req.query.stock[1].toUpperCase();
+          const price1 = await getPrice(sym1);
+          const price2 = await getPrice(sym2);
+
+          let stock1 = await Stock.findOneAndUpdate(
+            { symbol: sym1 },
+            { $setOnInsert: { symbol: sym1 } },
+            { upsert: true, new: true }
+          );
+          let stock2 = await Stock.findOneAndUpdate(
+            { symbol: sym2 },
+            { $setOnInsert: { symbol: sym2 } },
+            { upsert: true, new: true }
+          );
+
+          if (like) {
+            stock1 = await Stock.findOneAndUpdate(
+              { symbol: sym1 },
+              { $addToSet: { likes: ip } },
+              { new: true }
+            );
+            stock2 = await Stock.findOneAndUpdate(
+              { symbol: sym2 },
+              { $addToSet: { likes: ip } },
+              { new: true }
+            );
+          }
+
+          return res.json({
+            stockData: [
+              { stock: sym1, price: price1, rel_likes: stock1.likes.length - stock2.likes.length },
+              { stock: sym2, price: price2, rel_likes: stock2.likes.length - stock1.likes.length },
+            ],
+          });
+
+        } else {
+          const sym = req.query.stock.toUpperCase();
+          const price = await getPrice(sym);
+
+          let stock = await Stock.findOneAndUpdate(
+            { symbol: sym },
+            { $setOnInsert: { symbol: sym } },
+            { upsert: true, new: true }
+          );
+
+          if (like) {
+            stock = await Stock.findOneAndUpdate(
+              { symbol: sym },
+              { $addToSet: { likes: ip } },
+              { new: true }
+            );
+          }
+
+          return res.json({
+            stockData: {
+              stock: sym,
+              price: price,
+              likes: stock.likes.length,
+            },
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+      }
+    });
+};
