@@ -3,14 +3,12 @@ const fetch = require('node-fetch');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+mongoose.set('strictQuery', true);
+mongoose.connect(process.env.MONGO_URI).catch(err => console.error('MongoDB error:', err));
 
 const stockSchema = new mongoose.Schema({
   symbol: { type: String, required: true, unique: true },
-  likes: { type: [String], default: [] }, // IPs anonimizadas
+  likes: { type: [String], default: [] },
 });
 const Stock = mongoose.model('Stock', stockSchema);
 
@@ -33,9 +31,7 @@ module.exports = function (app) {
         const ip = anonymizeIP(req.ip);
 
         if (Array.isArray(req.query.stock)) {
-          // Dos stocks
           const [sym1, sym2] = req.query.stock.map(s => s.toUpperCase());
-
           const [price1, price2] = await Promise.all([getPrice(sym1), getPrice(sym2)]);
 
           let [stock1, stock2] = await Promise.all([
@@ -52,34 +48,28 @@ module.exports = function (app) {
           ]);
 
           if (like) {
-            if (!stock1.likes.includes(ip)) {
-              stock1 = await Stock.findOneAndUpdate(
+            [stock1, stock2] = await Promise.all([
+              Stock.findOneAndUpdate(
                 { symbol: sym1 },
                 { $addToSet: { likes: ip } },
                 { new: true }
-              );
-            }
-            if (!stock2.likes.includes(ip)) {
-              stock2 = await Stock.findOneAndUpdate(
+              ),
+              Stock.findOneAndUpdate(
                 { symbol: sym2 },
                 { $addToSet: { likes: ip } },
                 { new: true }
-              );
-            }
+              ),
+            ]);
           }
-
-          const rel1 = stock1.likes.length - stock2.likes.length;
-          const rel2 = stock2.likes.length - stock1.likes.length;
 
           return res.json({
             stockData: [
-              { stock: sym1, price: price1, rel_likes: rel1 },
-              { stock: sym2, price: price2, rel_likes: rel2 },
+              { stock: sym1, price: price1, rel_likes: stock1.likes.length - stock2.likes.length },
+              { stock: sym2, price: price2, rel_likes: stock2.likes.length - stock1.likes.length },
             ],
           });
 
         } else {
-          // Un solo stock
           const sym = req.query.stock.toUpperCase();
           const price = await getPrice(sym);
 
@@ -89,7 +79,7 @@ module.exports = function (app) {
             { upsert: true, new: true }
           );
 
-          if (like && !stock.likes.includes(ip)) {
+          if (like) {
             stock = await Stock.findOneAndUpdate(
               { symbol: sym },
               { $addToSet: { likes: ip } },
@@ -109,5 +99,7 @@ module.exports = function (app) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
       }
+    });
+};
     });
 };
