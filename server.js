@@ -40,4 +40,17 @@ app.use(function (req, res, next) {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, function () {
   console.log('Your app is listening on port ' + PORT);
-  i
+  if (process.env.NODE_ENV === 'test') {
+    console.log('Running Tests...');
+    setTimeout(function () {
+      try {
+        runner.run();
+      } catch (e) {
+        console.log('Tests are not valid:');
+        console.error(e);
+      }
+    }, 3500);
+  }
+});
+
+module.exports = app;
